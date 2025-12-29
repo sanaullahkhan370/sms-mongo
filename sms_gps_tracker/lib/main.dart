@@ -21,7 +21,11 @@ class _MyAppState extends State<MyApp> {
   String lastSms = "No SMS yet";
   String lat = "-";
   String lng = "-";
-  String status = "Waiting...";
+  String status = "Waiting for SMS...";
+
+  // 🔴 YOUR RENDER BACKEND URL (ONLY CHANGE IF URL IS DIFFERENT)
+  final String apiUrl =
+      "https://bus-tracking-backend.onrender.com/api/location/update";
 
   @override
   void initState() {
@@ -51,14 +55,15 @@ class _MyAppState extends State<MyApp> {
           });
 
           await _sendToServer(lat, lng);
+        } else {
+          setState(() => status = "❌ GPS not found in SMS");
         }
       }
     });
   }
 
-  // 🔥 UPDATED GPS PARSER (GF-07 + Google Maps)
+  // ✅ GPS PARSER (GF-07 + Google Maps)
   Map<String, String>? _parseGps(String sms) {
-
     // Format 1: lat:31.69 lng:74.24
     final latMatch = RegExp(r'lat[:=]\s*([0-9.+-]+)').firstMatch(sms);
     final lngMatch = RegExp(r'lng[:=]\s*([0-9.+-]+)').firstMatch(sms);
@@ -72,7 +77,8 @@ class _MyAppState extends State<MyApp> {
 
     // Format 2: Google Maps link
     // http://maps.google.com/?q=31.7007450,74.2532420
-    final mapMatch = RegExp(r'q=([0-9.+-]+),([0-9.+-]+)').firstMatch(sms);
+    final mapMatch =
+        RegExp(r'q=([0-9.+-]+),([0-9.+-]+)').firstMatch(sms);
     if (mapMatch != null) {
       return {
         'lat': mapMatch.group(1)!,
@@ -83,11 +89,13 @@ class _MyAppState extends State<MyApp> {
     return null;
   }
 
+  // 🚀 SEND LOCATION TO RENDER BACKEND
   Future<void> _sendToServer(String lat, String lng) async {
     try {
-      setState(() => status = "Sending to server...");
-      await http.post(
-        Uri.parse("http://10.75.32.20:5000/api/location/update"),
+      setState(() => status = "📡 Sending to server...");
+
+      final response = await http.post(
+        Uri.parse(apiUrl),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           "busId": "UET-021",
@@ -95,10 +103,17 @@ class _MyAppState extends State<MyApp> {
           "lng": lng,
         }),
       );
-      setState(() => status = "✅ Sent to MongoDB");
+
+      print("📤 SERVER RESPONSE: ${response.body}");
+
+      if (response.statusCode == 200) {
+        setState(() => status = "✅ Location sent to MongoDB");
+      } else {
+        setState(() => status = "❌ Server error");
+      }
     } catch (e) {
-      setState(() => status = "❌ Error sending");
-      print(e);
+      setState(() => status = "❌ Network error");
+      print("❌ ERROR: $e");
     }
   }
 
